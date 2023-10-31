@@ -158,7 +158,7 @@ class _PriceChartState extends State<PriceChart> {
                 setState(() {
                   zoomY += details.primaryDelta ?? 0.0;
                   print(zoomY);
-                  if(zoomY < -90){
+                  if (zoomY < -90) {
                     zoomY = -90;
                   }
                   // maxY += details.primaryDelta ?? 0.0;
@@ -259,39 +259,177 @@ class PriceChartPainter extends CustomPainter {
     }
 
     int roundToNearestMultipleY(double value, int exp) {
-  final exponent = (log(value / exp) / log(exp)).ceil();
-  final multiple = exp * exponent; // Calcula el múltiplo en lugar del exponente
-  return multiple;
-}
+      final exponent = (log(value / exp) / log(exp)).ceil();
+      final multiple =
+          exp * exponent; // Calcula el múltiplo en lugar del exponente
+      return multiple;
+    }
 
     final double totalRange = maxY - minY;
     const int numberOfLines = 10;
     final double yInterval = totalRange / numberOfLines;
     double adjustedYAxisInterval = yInterval + (zoomY / 10);
+    if (adjustedYAxisInterval < 0.1) {
+      adjustedYAxisInterval = 0.1;
+    }
     int intervalPrice = roundToNearestMultiple(adjustedYAxisInterval, 2);
     print(adjustedYAxisInterval);
     print(intervalPrice);
 
-// Dibujar líneas horizontales en el eje Y con etiquetas de valor (hacia arriba)
-for (double lineValue = maxY; lineValue >= minY; lineValue -= intervalPrice) {
-    final double y = height -
-        ((lineValue - minY) * (height / (totalRange + zoomY))) +
-        scrollOffsetY;
-    if (y >= 0 && y <= height) {
+    //Dibujar líneas horizontales en el eje Y con etiquetas de valor (hacia arriba)
+    // for (double lineValue = maxY;
+    //     lineValue >= minY;
+    //     lineValue -= intervalPrice) {
+    //   final double y = height -
+    //       ((lineValue - minY) * (height / (totalRange + zoomY))) +
+    //       scrollOffsetY;
+    //   if (y >= 0 && y <= height) {
+    //     canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+
+    //     final TextPainter lineValuePainter = TextPainter(
+    //       text: TextSpan(
+    //         text: lineValue.toStringAsFixed(2),
+    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
+    //       ),
+    //       textDirection: ui.TextDirection.ltr,
+    //     );
+    //     lineValuePainter.layout();
+    //     lineValuePainter.paint(
+    //       canvas,
+    //       Offset(width + 5, y - lineValuePainter.height / 2),
+    //     );
+    //   }
+    // }
+
+    for (double lineValue = maxY;
+        lineValue >= minY + scrollOffsetY - zoomY;
+        lineValue -= intervalPrice) {
+      final double y = height -
+          ((lineValue - minY) * (height / (totalRange + zoomY))) +
+          scrollOffsetY;
+      if (y >= 0 && y <= height) {
         canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
 
         final TextPainter lineValuePainter = TextPainter(
-            text: TextSpan(
-                text: lineValue.toStringAsFixed(2),
-                style: const TextStyle(color: Colors.black, fontSize: 12.0),
-            ),
-            textDirection: ui.TextDirection.ltr,
+          text: TextSpan(
+            text: lineValue.toStringAsFixed(2),
+            style: const TextStyle(color: Colors.black, fontSize: 12.0),
+          ),
+          textDirection: ui.TextDirection.ltr,
         );
         lineValuePainter.layout();
         lineValuePainter.paint(
-            canvas, Offset(width + 5, y - lineValuePainter.height / 2));
+          canvas,
+          Offset(width + 5, y - lineValuePainter.height / 2),
+        );
+      }
     }
-}
+
+    // Dibujar líneas también por encima de maxY si es visible en el canvas
+
+    // Dibujar líneas horizontales en el eje Y con etiquetas de valor (hacia arriba)
+    // for (double lineValue = maxY;
+    //     lineValue >= minY;
+    //     lineValue -= intervalPrice) {
+    //   final double y = height -
+    //       ((lineValue - minY) * (height / (totalRange + zoomY))) +
+    //       scrollOffsetY;
+    //   if (y >= 0 && y <= height) {
+    //     canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+
+    //     final TextPainter lineValuePainter = TextPainter(
+    //       text: TextSpan(
+    //         text: lineValue.toStringAsFixed(2),
+    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
+    //       ),
+    //       textDirection: ui.TextDirection.ltr,
+    //     );
+    //     lineValuePainter.layout();
+    //     lineValuePainter.paint(
+    //       canvas,
+    //       Offset(width + 5, y - lineValuePainter.height / 2),
+    //     );
+    //   }
+    // }
+
+    // // Dibujar líneas horizontales adicionales mientras se desplaza verticalmente
+    // for (double i = minY; i <= maxY; i += intervalPrice) {
+    //   final double valuePosition = height -
+    //       ((i - minY) * (height / (totalRange + zoomY))) +
+    //       scrollOffsetY;
+    //   if (valuePosition > 0 && valuePosition < height) {
+    //     canvas.drawLine(
+    //         Offset(0, valuePosition), Offset(width, valuePosition), linePaint);
+
+    //     final TextPainter additionalLineValuePainter = TextPainter(
+    //       text: TextSpan(
+    //         text: i.toStringAsFixed(2),
+    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
+    //       ),
+    //       textDirection: ui.TextDirection.ltr,
+    //     );
+    //     additionalLineValuePainter.layout();
+    //     additionalLineValuePainter.paint(
+    //       canvas,
+    //       Offset(
+    //           width + 5, valuePosition - additionalLineValuePainter.height / 2),
+    //     );
+    //   }
+
+    // Dibujar líneas horizontales adicionales mientras se desplaza verticalmente hacia arriba
+    // double positiveY = height + scrollOffsetY;
+    // while (positiveY > 0) {
+    //   canvas.drawLine(
+    //       Offset(0, positiveY), Offset(width, positiveY), linePaint);
+
+    //   final String valueAtLine =
+    //       (minY + ((height - positiveY) * (totalRange / height)))
+    //           .toStringAsFixed(2);
+    //   final TextPainter additionalLineValuePainter = TextPainter(
+    //     text: TextSpan(
+    //       text: valueAtLine,
+    //       style: const TextStyle(color: Colors.black, fontSize: 12.0),
+    //     ),
+    //     textDirection: ui.TextDirection.ltr,
+    //   );
+    //   additionalLineValuePainter.layout();
+    //   additionalLineValuePainter.paint(
+    //     canvas,
+    //     Offset(width + 5, positiveY - additionalLineValuePainter.height / 2),
+    //   );
+
+    //   positiveY -= (height /
+    //       10); // Cambia este valor para ajustar la frecuencia de las líneas
+    // }
+
+    // // Dibujar líneas horizontales adicionales mientras se desplaza verticalmente hacia abajo
+    // double negativeY = height +
+    //     scrollOffsetY +
+    //     (height /
+    //         10); // Comienza desde la posición de desplazamiento + una sección
+    // while (negativeY < size.height) {
+    //   canvas.drawLine(
+    //       Offset(0, negativeY), Offset(width, negativeY), linePaint);
+
+    //   final String valueAtLine =
+    //       (minY + ((height - negativeY) * (totalRange / height)))
+    //           .toStringAsFixed(2);
+    //   final TextPainter additionalLineValuePainter = TextPainter(
+    //     text: TextSpan(
+    //       text: valueAtLine,
+    //       style: const TextStyle(color: Colors.black, fontSize: 12.0),
+    //     ),
+    //     textDirection: ui.TextDirection.ltr,
+    //   );
+    //   additionalLineValuePainter.layout();
+    //   additionalLineValuePainter.paint(
+    //     canvas,
+    //     Offset(width + 5, negativeY - additionalLineValuePainter.height / 2),
+    //   );
+
+    //   negativeY += (height /
+    //       10); // Cambia este valor para ajustar la frecuencia de las líneas
+    // }
 
     // Dibujar líneas horizontales cada 20 píxeles
     // final Paint horizontalLinePaint = Paint()
