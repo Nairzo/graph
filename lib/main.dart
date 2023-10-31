@@ -74,20 +74,15 @@ class PriceChart extends StatefulWidget {
 
 class _PriceChartState extends State<PriceChart> {
   double zoom = 0.0;
+  double zoomY = 0.0;
   double scrollOffsetX = 0.0;
   double scrollOffsetY = 0.0;
-  double minY = 0;
-  double maxY = 0;
+  double minY = 100.21;
+  double maxY = 201.50;
 
   @override
   void initState() {
     super.initState();
-
-    minY =
-        widget.data.map((candle) => candle.low).reduce((a, b) => a < b ? a : b);
-    maxY = widget.data
-        .map((candle) => candle.high)
-        .reduce((a, b) => a > b ? a : b);
   }
 
   @override
@@ -95,8 +90,12 @@ class _PriceChartState extends State<PriceChart> {
     Size size = MediaQuery.of(context).size;
     return Center(
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               GestureDetector(
                 onHorizontalDragUpdate: (details) {
@@ -108,12 +107,15 @@ class _PriceChartState extends State<PriceChart> {
                   setState(() {
                     scrollOffsetX += details.delta.dx;
                     scrollOffsetY += details.delta.dy;
-                    print(scrollOffsetY);
                   });
                 },
                 child: CustomPaint(
                   size: Size(size.width / 2, size.height / 2),
-                  painter: PriceChartPainter(zoom, scrollOffsetX, scrollOffsetY,
+                  painter: PriceChartPainter(
+                      zoomY: zoomY,
+                      zoom: zoom,
+                      scrollOffsetX: scrollOffsetX,
+                      scrollOffsetY: scrollOffsetY,
                       startDate: widget.startDate,
                       endDate: widget.endDate,
                       data: widget.data,
@@ -130,7 +132,6 @@ class _PriceChartState extends State<PriceChart> {
                   onHorizontalDragUpdate: (details) {
                     setState(() {
                       zoom += details.primaryDelta! / 20;
-                      print('zoom: $zoom');
                       if (zoom < -3.0) {
                         zoom = -3.0; // Establece el valor mínimo en 2.0
                       } else if (zoom > 125.0) {
@@ -155,8 +156,13 @@ class _PriceChartState extends State<PriceChart> {
             child: GestureDetector(
               onVerticalDragUpdate: (details) {
                 setState(() {
-                  maxY += details.primaryDelta ?? 0.0;
-                  minY -= details.primaryDelta ?? 0.0;
+                  zoomY += details.primaryDelta ?? 0.0;
+                  print(zoomY);
+                  if(zoomY < -90){
+                    zoomY = -90;
+                  }
+                  // maxY += details.primaryDelta ?? 0.0;
+                  // minY -= details.primaryDelta ?? 0.0;
                 });
               },
               child: Container(
@@ -176,14 +182,19 @@ class PriceChartPainter extends CustomPainter {
   final DateTime startDate;
   final DateTime endDate;
   double zoom;
+  double zoomY;
   double scrollOffsetX;
   double scrollOffsetY;
   final List<Candlestick> data;
   double minY;
   double maxY;
 
-  PriceChartPainter(this.zoom, this.scrollOffsetX, this.scrollOffsetY,
+  PriceChartPainter(
       {required this.startDate,
+      required this.zoom,
+      required this.scrollOffsetX,
+      required this.scrollOffsetY,
+      required this.zoomY,
       required this.endDate,
       required this.data,
       required this.maxY,
@@ -206,16 +217,15 @@ class PriceChartPainter extends CustomPainter {
     const double constantValue =
         100.0; // Ajusta este valor según tus necesidades.
 
-    int roundToNearestMultiple(double value) {
-      final exponent = (log(value / 2) / log(2)).ceil();
-      final multiple = pow(2, exponent).toInt();
+    int roundToNearestMultiple(double value, int exp) {
+      final exponent = (log(value / exp) / log(exp)).ceil();
+      final multiple = pow(exp, exponent).toInt();
       return multiple;
     }
 
     //final int interval = (constantValue / adjustedXAxisInterval).ceil();
     double interval = (constantValue / adjustedXAxisInterval);
-    print('interval: $interval');
-    int intervalMinutes = roundToNearestMultiple(interval);
+    int intervalMinutes = roundToNearestMultiple(interval, 2);
     if (intervalMinutes == 0 || intervalMinutes < 0) {
       intervalMinutes = 1;
     }
@@ -248,83 +258,95 @@ class PriceChartPainter extends CustomPainter {
       }
     }
 
-    
-    // Dibujar líneas horizontales (eje Y) y etiquetas de precio
-    // for (int i = 0; i <= 10; i++) {
-    //   final double y = i * yAxisInterval + scrollOffsetY;
-    //   final double price = minY + (maxY - minY) * i / 10;
+    int roundToNearestMultipleY(double value, int exp) {
+  final exponent = (log(value / exp) / log(exp)).ceil();
+  final multiple = exp * exponent; // Calcula el múltiplo en lugar del exponente
+  return multiple;
+}
 
-    //   // Dibuja la línea horizontal
-    //   canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+    final double totalRange = maxY - minY;
+    const int numberOfLines = 10;
+    final double yInterval = totalRange / numberOfLines;
+    double adjustedYAxisInterval = yInterval + (zoomY / 10);
+    int intervalPrice = roundToNearestMultiple(adjustedYAxisInterval, 2);
+    print(adjustedYAxisInterval);
+    print(intervalPrice);
 
-    //   // Dibuja la etiqueta de precio
-    //   // final TextPainter textPainter = TextPainter(
-    //   //   text: TextSpan(
-    //   //     text: '\$${price.toStringAsFixed(2)}',
-    //   //     style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //   //   ),
-    //   //   textDirection: ui.TextDirection.ltr,
-    //   // );
-    //   // textPainter.layout(minWidth: 60, maxWidth: 60);
-    //   // textPainter.paint(canvas, Offset(width + 10, y - 10));
-    // }
+// Dibujar líneas horizontales en el eje Y con etiquetas de valor (hacia arriba)
+for (double lineValue = maxY; lineValue >= minY; lineValue -= intervalPrice) {
+    final double y = height -
+        ((lineValue - minY) * (height / (totalRange + zoomY))) +
+        scrollOffsetY;
+    if (y >= 0 && y <= height) {
+        canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+
+        final TextPainter lineValuePainter = TextPainter(
+            text: TextSpan(
+                text: lineValue.toStringAsFixed(2),
+                style: const TextStyle(color: Colors.black, fontSize: 12.0),
+            ),
+            textDirection: ui.TextDirection.ltr,
+        );
+        lineValuePainter.layout();
+        lineValuePainter.paint(
+            canvas, Offset(width + 5, y - lineValuePainter.height / 2));
+    }
+}
 
     // Dibujar líneas horizontales cada 20 píxeles
-    final Paint horizontalLinePaint = Paint()
-      ..color = Colors.grey.withOpacity(0.5) // Color de las líneas horizontales
-      ..style = PaintingStyle.stroke;
+    // final Paint horizontalLinePaint = Paint()
+    //   ..color = Colors.grey.withOpacity(0.5) // Color de las líneas horizontales
+    //   ..style = PaintingStyle.stroke;
 
-    final TextPainter valueLabelPainter = TextPainter(
-      textDirection: ui.TextDirection.ltr,
-    );
+    // final TextPainter valueLabelPainter = TextPainter(
+    //   textDirection: ui.TextDirection.ltr,
+    // );
 
-    double positiveLinePosition = 20.0 + (scrollOffsetY);
-    double negativeLinePosition = 20.0 + (scrollOffsetY);
+    // double positiveLinePosition = 20.0 + (scrollOffsetY);
+    // double negativeLinePosition = 20.0 + (scrollOffsetY);
 
-    while ((positiveLinePosition < size.height) || (negativeLinePosition > 0)) {
-      if (positiveLinePosition < size.height && positiveLinePosition > 0) {
-        canvas.drawLine(
-          Offset(0, positiveLinePosition),
-          Offset(size.width, positiveLinePosition),
-          horizontalLinePaint,
-        );
+    // while ((positiveLinePosition < size.height) || (negativeLinePosition > 0)) {
+    //   if (positiveLinePosition < size.height && positiveLinePosition > 0) {
+    //     canvas.drawLine(
+    //       Offset(0, positiveLinePosition),
+    //       Offset(size.width, positiveLinePosition),
+    //       horizontalLinePaint,
+    //     );
 
-        final String valueTextPositive = (size.height - positiveLinePosition + scrollOffsetY).toStringAsFixed(0);
-        valueLabelPainter.text = TextSpan(
-          text: valueTextPositive,
-          style: const TextStyle(color: Colors.black, fontSize: 12.0),
-        );
-        valueLabelPainter.layout();
-        valueLabelPainter.paint(
-          canvas,
-          Offset(size.width - valueLabelPainter.width - 5, positiveLinePosition - valueLabelPainter.height / 2),
-        );
-      }
+    //     final String valueTextPositive = (size.height - positiveLinePosition + scrollOffsetY).toStringAsFixed(0);
+    //     valueLabelPainter.text = TextSpan(
+    //       text: valueTextPositive,
+    //       style: const TextStyle(color: Colors.black, fontSize: 12.0),
+    //     );
+    //     valueLabelPainter.layout();
+    //     valueLabelPainter.paint(
+    //       canvas,
+    //       Offset(size.width - valueLabelPainter.width - 5, positiveLinePosition - valueLabelPainter.height / 2),
+    //     );
+    //   }
 
-      if (negativeLinePosition > 0 && negativeLinePosition < size.height) {
-        canvas.drawLine(
-          Offset(0, negativeLinePosition),
-          Offset(size.width, negativeLinePosition),
-          horizontalLinePaint,
-        );
+    //   if (negativeLinePosition > 0 && negativeLinePosition < size.height) {
+    //     canvas.drawLine(
+    //       Offset(0, negativeLinePosition),
+    //       Offset(size.width, negativeLinePosition),
+    //       horizontalLinePaint,
+    //     );
 
-        final String valueTextNegative = (size.height - negativeLinePosition + scrollOffsetY).toStringAsFixed(0);
-        valueLabelPainter.text = TextSpan(
-          text: valueTextNegative,
-          style: TextStyle(color: Colors.black, fontSize: 12.0),
-        );
-        valueLabelPainter.layout();
-        valueLabelPainter.paint(
-          canvas,
-          Offset(size.width - valueLabelPainter.width - 5, negativeLinePosition - valueLabelPainter.height / 2),
-        );
-      }
+    //     final String valueTextNegative = (size.height - negativeLinePosition + scrollOffsetY).toStringAsFixed(0);
+    //     valueLabelPainter.text = TextSpan(
+    //       text: valueTextNegative,
+    //       style: TextStyle(color: Colors.black, fontSize: 12.0),
+    //     );
+    //     valueLabelPainter.layout();
+    //     valueLabelPainter.paint(
+    //       canvas,
+    //       Offset(size.width - valueLabelPainter.width - 5, negativeLinePosition - valueLabelPainter.height / 2),
+    //     );
+    //   }
 
-      positiveLinePosition += 40.0;
-      negativeLinePosition -= 40.0;
-    }
-  
-
+    //   positiveLinePosition += 40.0;
+    //   negativeLinePosition -= 40.0;
+    // }
 
     // Dibujar las velas financieras
     // for (int i = 0; i < data.length; i++) {
