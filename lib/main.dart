@@ -148,8 +148,8 @@ class _PriceChartState extends State<PriceChart> {
               )
             ],
           ),
-          SizedBox(
-            width: 50,
+          const SizedBox(
+            width: 60,
           ),
           MouseRegion(
             cursor: SystemMouseCursors.resizeUpDown,
@@ -161,8 +161,6 @@ class _PriceChartState extends State<PriceChart> {
                   if (zoomY < -90) {
                     zoomY = -90;
                   }
-                  // maxY += details.primaryDelta ?? 0.0;
-                  // minY -= details.primaryDelta ?? 0.0;
                 });
               },
               child: Container(
@@ -258,54 +256,22 @@ class PriceChartPainter extends CustomPainter {
       }
     }
 
-    int roundToNearestMultipleY(double value, int exp) {
-      final exponent = (log(value / exp) / log(exp)).ceil();
-      final multiple =
-          exp * exponent; // Calcula el múltiplo en lugar del exponente
-      return multiple;
-    }
-
     final double totalRange = maxY - minY;
     const int numberOfLines = 10;
     final double yInterval = totalRange / numberOfLines;
     double adjustedYAxisInterval = yInterval + (zoomY / 10);
-    if (adjustedYAxisInterval < 0.1) {
-      adjustedYAxisInterval = 0.1;
+    if (adjustedYAxisInterval < 1) {
+      adjustedYAxisInterval = 1;
     }
-    int intervalPrice = roundToNearestMultiple(adjustedYAxisInterval, 2);
+    int intervalPrice = (roundToNearestMultiple(adjustedYAxisInterval, 2));
     print(adjustedYAxisInterval);
     print(intervalPrice);
 
-    //Dibujar líneas horizontales en el eje Y con etiquetas de valor (hacia arriba)
-    // for (double lineValue = maxY;
-    //     lineValue >= minY;
-    //     lineValue -= intervalPrice) {
-    //   final double y = height -
-    //       ((lineValue - minY) * (height / (totalRange + zoomY))) +
-    //       scrollOffsetY;
-    //   if (y >= 0 && y <= height) {
-    //     canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
-
-    //     final TextPainter lineValuePainter = TextPainter(
-    //       text: TextSpan(
-    //         text: lineValue.toStringAsFixed(2),
-    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //       ),
-    //       textDirection: ui.TextDirection.ltr,
-    //     );
-    //     lineValuePainter.layout();
-    //     lineValuePainter.paint(
-    //       canvas,
-    //       Offset(width + 5, y - lineValuePainter.height / 2),
-    //     );
-    //   }
-    // }
 
     for (double lineValue = maxY;
-        lineValue >= minY + scrollOffsetY - zoomY;
+        lineValue >= minY - intervalPrice;
         lineValue -= intervalPrice) {
-      final double y = height -
-          ((lineValue - minY) * (height / (totalRange + zoomY))) +
+      final double y = (height - ((lineValue - minY) * (height / (totalRange + zoomY )))) +
           scrollOffsetY;
       if (y >= 0 && y <= height) {
         canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
@@ -325,216 +291,51 @@ class PriceChartPainter extends CustomPainter {
       }
     }
 
-    // Dibujar líneas también por encima de maxY si es visible en el canvas
+    for (double lineValue = maxY;
+        lineValue <= maxY + scrollOffsetY;
+        lineValue += intervalPrice) {
+      final double y =
+          height - ((lineValue - minY) * (height / (totalRange + zoomY ))) + scrollOffsetY;
+      if (y >= 0 && y <= height) {
+        canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
 
-    // Dibujar líneas horizontales en el eje Y con etiquetas de valor (hacia arriba)
-    // for (double lineValue = maxY;
-    //     lineValue >= minY;
-    //     lineValue -= intervalPrice) {
-    //   final double y = height -
-    //       ((lineValue - minY) * (height / (totalRange + zoomY))) +
-    //       scrollOffsetY;
-    //   if (y >= 0 && y <= height) {
-    //     canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+        final TextPainter lineValuePainter = TextPainter(
+          text: TextSpan(
+            text: lineValue.toStringAsFixed(2),
+            style: const TextStyle(color: Colors.black, fontSize: 12.0),
+          ),
+          textDirection: ui.TextDirection.ltr,
+        );
+        lineValuePainter.layout();
+        lineValuePainter.paint(
+          canvas,
+          Offset(width + 5, y - lineValuePainter.height / 2),
+        );
+      }
+    }
 
-    //     final TextPainter lineValuePainter = TextPainter(
-    //       text: TextSpan(
-    //         text: lineValue.toStringAsFixed(2),
-    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //       ),
-    //       textDirection: ui.TextDirection.ltr,
-    //     );
-    //     lineValuePainter.layout();
-    //     lineValuePainter.paint(
-    //       canvas,
-    //       Offset(width + 5, y - lineValuePainter.height / 2),
-    //     );
-    //   }
-    // }
+    for (double lineValue = minY - intervalPrice;
+        lineValue >= minY + scrollOffsetY;
+        lineValue -= intervalPrice) {
+      final double y =
+          height - ((lineValue - minY) * (height / (totalRange + zoomY ))) + scrollOffsetY;
+      if (y >= 0 && y <= height) {
+        canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
 
-    // // Dibujar líneas horizontales adicionales mientras se desplaza verticalmente
-    // for (double i = minY; i <= maxY; i += intervalPrice) {
-    //   final double valuePosition = height -
-    //       ((i - minY) * (height / (totalRange + zoomY))) +
-    //       scrollOffsetY;
-    //   if (valuePosition > 0 && valuePosition < height) {
-    //     canvas.drawLine(
-    //         Offset(0, valuePosition), Offset(width, valuePosition), linePaint);
-
-    //     final TextPainter additionalLineValuePainter = TextPainter(
-    //       text: TextSpan(
-    //         text: i.toStringAsFixed(2),
-    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //       ),
-    //       textDirection: ui.TextDirection.ltr,
-    //     );
-    //     additionalLineValuePainter.layout();
-    //     additionalLineValuePainter.paint(
-    //       canvas,
-    //       Offset(
-    //           width + 5, valuePosition - additionalLineValuePainter.height / 2),
-    //     );
-    //   }
-
-    // Dibujar líneas horizontales adicionales mientras se desplaza verticalmente hacia arriba
-    // double positiveY = height + scrollOffsetY;
-    // while (positiveY > 0) {
-    //   canvas.drawLine(
-    //       Offset(0, positiveY), Offset(width, positiveY), linePaint);
-
-    //   final String valueAtLine =
-    //       (minY + ((height - positiveY) * (totalRange / height)))
-    //           .toStringAsFixed(2);
-    //   final TextPainter additionalLineValuePainter = TextPainter(
-    //     text: TextSpan(
-    //       text: valueAtLine,
-    //       style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //     ),
-    //     textDirection: ui.TextDirection.ltr,
-    //   );
-    //   additionalLineValuePainter.layout();
-    //   additionalLineValuePainter.paint(
-    //     canvas,
-    //     Offset(width + 5, positiveY - additionalLineValuePainter.height / 2),
-    //   );
-
-    //   positiveY -= (height /
-    //       10); // Cambia este valor para ajustar la frecuencia de las líneas
-    // }
-
-    // // Dibujar líneas horizontales adicionales mientras se desplaza verticalmente hacia abajo
-    // double negativeY = height +
-    //     scrollOffsetY +
-    //     (height /
-    //         10); // Comienza desde la posición de desplazamiento + una sección
-    // while (negativeY < size.height) {
-    //   canvas.drawLine(
-    //       Offset(0, negativeY), Offset(width, negativeY), linePaint);
-
-    //   final String valueAtLine =
-    //       (minY + ((height - negativeY) * (totalRange / height)))
-    //           .toStringAsFixed(2);
-    //   final TextPainter additionalLineValuePainter = TextPainter(
-    //     text: TextSpan(
-    //       text: valueAtLine,
-    //       style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //     ),
-    //     textDirection: ui.TextDirection.ltr,
-    //   );
-    //   additionalLineValuePainter.layout();
-    //   additionalLineValuePainter.paint(
-    //     canvas,
-    //     Offset(width + 5, negativeY - additionalLineValuePainter.height / 2),
-    //   );
-
-    //   negativeY += (height /
-    //       10); // Cambia este valor para ajustar la frecuencia de las líneas
-    // }
-
-    // Dibujar líneas horizontales cada 20 píxeles
-    // final Paint horizontalLinePaint = Paint()
-    //   ..color = Colors.grey.withOpacity(0.5) // Color de las líneas horizontales
-    //   ..style = PaintingStyle.stroke;
-
-    // final TextPainter valueLabelPainter = TextPainter(
-    //   textDirection: ui.TextDirection.ltr,
-    // );
-
-    // double positiveLinePosition = 20.0 + (scrollOffsetY);
-    // double negativeLinePosition = 20.0 + (scrollOffsetY);
-
-    // while ((positiveLinePosition < size.height) || (negativeLinePosition > 0)) {
-    //   if (positiveLinePosition < size.height && positiveLinePosition > 0) {
-    //     canvas.drawLine(
-    //       Offset(0, positiveLinePosition),
-    //       Offset(size.width, positiveLinePosition),
-    //       horizontalLinePaint,
-    //     );
-
-    //     final String valueTextPositive = (size.height - positiveLinePosition + scrollOffsetY).toStringAsFixed(0);
-    //     valueLabelPainter.text = TextSpan(
-    //       text: valueTextPositive,
-    //       style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //     );
-    //     valueLabelPainter.layout();
-    //     valueLabelPainter.paint(
-    //       canvas,
-    //       Offset(size.width - valueLabelPainter.width - 5, positiveLinePosition - valueLabelPainter.height / 2),
-    //     );
-    //   }
-
-    //   if (negativeLinePosition > 0 && negativeLinePosition < size.height) {
-    //     canvas.drawLine(
-    //       Offset(0, negativeLinePosition),
-    //       Offset(size.width, negativeLinePosition),
-    //       horizontalLinePaint,
-    //     );
-
-    //     final String valueTextNegative = (size.height - negativeLinePosition + scrollOffsetY).toStringAsFixed(0);
-    //     valueLabelPainter.text = TextSpan(
-    //       text: valueTextNegative,
-    //       style: TextStyle(color: Colors.black, fontSize: 12.0),
-    //     );
-    //     valueLabelPainter.layout();
-    //     valueLabelPainter.paint(
-    //       canvas,
-    //       Offset(size.width - valueLabelPainter.width - 5, negativeLinePosition - valueLabelPainter.height / 2),
-    //     );
-    //   }
-
-    //   positiveLinePosition += 40.0;
-    //   negativeLinePosition -= 40.0;
-    // }
-
-    // Dibujar las velas financieras
-    // for (int i = 0; i < data.length; i++) {
-    //   final double candleWidth = width / data.length + zoom;
-    //   // Calcular el centro de la vela
-    //   final double centerX = (i * candleWidth) + scrollOffsetX;
-
-    //   //final double centerX = i * adjustedXAxisInterval + scrollOffset;
-    //   final double highY =
-    //       height - (data[i].high - minY) * (height / (maxY - minY));
-    //   final double lowY =
-    //       height - (data[i].low - minY) * (height / (maxY - minY));
-    //   final double openY = height -
-    //       (data[i].open - minY - scrollOffsetY) * (height / (maxY - minY));
-    //   final double closeY = height -
-    //       (data[i].close - minY - scrollOffsetY) * (height / (maxY - minY));
-
-    //   final Paint candlePaint = Paint()
-    //     ..color = data[i].open < data[i].close ? Colors.green : Colors.red
-    //     ..style = PaintingStyle.fill;
-
-    //   final Paint wickPaint = Paint()
-    //     ..color = data[i].open < data[i].close ? Colors.green : Colors.red
-    //     ..style = PaintingStyle.stroke;
-
-    //   // Dibujar el cuerpo de la vela
-    //   canvas.drawRect(
-    //     Rect.fromLTRB((centerX - candleWidth / 2).clamp(0.0, size.width), openY,
-    //         (centerX + candleWidth / 2).clamp(0.0, size.width), closeY),
-    //     candlePaint,
-    //   );
-
-    //   // // Dibujar las líneas superiores e inferiores de la vela (mechas)
-    //   // canvas.drawLine(Offset(centerX.clamp(0.0, size.width), highY),
-    //   //     Offset(centerX, openY), wickPaint);
-    //   // canvas.drawLine(Offset(centerX.clamp(0.0, size.width), closeY),
-    //   //     Offset(centerX, lowY), wickPaint);
-
-    //   //Valores para dibujar los altos y bajos
-    //   final wickTop =
-    //       (size.height - highY + scrollOffsetY).clamp(0.0, size.height);
-    //   final wickBottom =
-    //       (size.height - lowY + scrollOffsetY).clamp(0.0, size.height);
-    //   final wickLeft = (centerX - wickWidth / 2).clamp(0.0, size.width);
-    //   final wickRight = (centerX + wickWidth / 2).clamp(0.0, size.width);
-
-    //   //Dibujar altos y bajos
-    //   canvas.drawRect(
-    //       Rect.fromLTRB(wickLeft, wickTop, wickRight, wickBottom), wickPaint);
-    // }
+        final TextPainter lineValuePainter = TextPainter(
+          text: TextSpan(
+            text: lineValue.toStringAsFixed(2),
+            style: const TextStyle(color: Colors.black, fontSize: 12.0),
+          ),
+          textDirection: ui.TextDirection.ltr,
+        );
+        lineValuePainter.layout();
+        lineValuePainter.paint(
+          canvas,
+          Offset(width + 5, y - lineValuePainter.height / 2),
+        );
+      }
+    }
   }
 
   @override
