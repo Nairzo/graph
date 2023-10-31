@@ -77,8 +77,8 @@ class _PriceChartState extends State<PriceChart> {
   double zoomY = 0.0;
   double scrollOffsetX = 0.0;
   double scrollOffsetY = 0.0;
-  double minY = 100.21;
-  double maxY = 201.50;
+  double minY = 100;
+  double maxY = 110;
 
   @override
   void initState() {
@@ -157,10 +157,6 @@ class _PriceChartState extends State<PriceChart> {
               onVerticalDragUpdate: (details) {
                 setState(() {
                   zoomY += details.primaryDelta ?? 0.0;
-                  print(zoomY);
-                  if (zoomY < -90) {
-                    zoomY = -90;
-                  }
                 });
               },
               child: Container(
@@ -256,22 +252,74 @@ class PriceChartPainter extends CustomPainter {
       }
     }
 
+    double siguienteMultiplo(double valor) {
+      double multiplo;
+      if(valor < 0.1){
+        multiplo = 0.1;
+      }
+      if (valor < 1) {
+        multiplo =
+            0.5; // Si el valor es menor que 1, empezamos con múltiplos decimales
+        while (multiplo <= valor) {
+          multiplo +=
+              0.2; // Sumamos 0.2 para obtener el siguiente múltiplo decimal
+        }
+      } else if (valor < 5) {
+        multiplo = 2;
+        while (multiplo <= valor) {
+          multiplo *= 2;
+        }
+      } else {
+        int entero = valor.round();
+        multiplo = 10;
+        while (multiplo <= entero) {
+          multiplo *= 2;
+        }
+      }
+
+      return multiplo;
+    }
+
+    double zoomFactor = 1.0 + (zoomY / 10);
     final double totalRange = maxY - minY;
     const int numberOfLines = 10;
     final double yInterval = totalRange / numberOfLines;
     double adjustedYAxisInterval = yInterval + (zoomY / 10);
-    if (adjustedYAxisInterval < 1) {
-      adjustedYAxisInterval = 1;
+    double intervalPrice = (siguienteMultiplo(adjustedYAxisInterval));
+    if (intervalPrice == 0.1 || intervalPrice < 0.1) {
+      intervalPrice = 0.1;
     }
-    int intervalPrice = (roundToNearestMultiple(adjustedYAxisInterval, 2));
-    print(adjustedYAxisInterval);
-    print(intervalPrice);
 
+
+    // for (double lineValue = maxY;
+    //     lineValue >= minY;
+    //     lineValue -= intervalPrice) {
+    //   final double y = height -
+    //       ((lineValue - minY) * (height / (totalRange + zoomY))) +
+    //       scrollOffsetY;
+    //   if (y >= 0 && y <= height) {
+    //     canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+
+    //     final TextPainter lineValuePainter = TextPainter(
+    //       text: TextSpan(
+    //         text: lineValue.toStringAsFixed(2),
+    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
+    //       ),
+    //       textDirection: ui.TextDirection.ltr,
+    //     );
+    //     lineValuePainter.layout();
+    //     lineValuePainter.paint(
+    //       canvas,
+    //       Offset(width + 5, y - lineValuePainter.height / 2),
+    //     );
+    //   }
+    // }
 
     for (double lineValue = maxY;
-        lineValue >= minY - intervalPrice;
-        lineValue -= intervalPrice) {
-      final double y = (height - ((lineValue - minY) * (height / (totalRange + zoomY )))) +
+        lineValue <= (maxY + scrollOffsetY) * zoomFactor;
+        lineValue += intervalPrice) {
+      final double y = height -
+          ((lineValue - minY) * (height / (totalRange + zoomY))) +
           scrollOffsetY;
       if (y >= 0 && y <= height) {
         canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
@@ -291,51 +339,29 @@ class PriceChartPainter extends CustomPainter {
       }
     }
 
-    for (double lineValue = maxY;
-        lineValue <= maxY + scrollOffsetY;
-        lineValue += intervalPrice) {
-      final double y =
-          height - ((lineValue - minY) * (height / (totalRange + zoomY ))) + scrollOffsetY;
-      if (y >= 0 && y <= height) {
-        canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+    // for (double lineValue = minY;
+    //     lineValue >= (minY + scrollOffsetY) * zoomFactor;
+    //     lineValue -= intervalPrice) {
+    //   final double y = height -
+    //       ((lineValue - minY) * (height / (totalRange + zoomY))) +
+    //       scrollOffsetY;
+    //   if (y >= 0 && y <= height) {
+    //     canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
 
-        final TextPainter lineValuePainter = TextPainter(
-          text: TextSpan(
-            text: lineValue.toStringAsFixed(2),
-            style: const TextStyle(color: Colors.black, fontSize: 12.0),
-          ),
-          textDirection: ui.TextDirection.ltr,
-        );
-        lineValuePainter.layout();
-        lineValuePainter.paint(
-          canvas,
-          Offset(width + 5, y - lineValuePainter.height / 2),
-        );
-      }
-    }
-
-    for (double lineValue = minY - intervalPrice;
-        lineValue >= minY + scrollOffsetY;
-        lineValue -= intervalPrice) {
-      final double y =
-          height - ((lineValue - minY) * (height / (totalRange + zoomY ))) + scrollOffsetY;
-      if (y >= 0 && y <= height) {
-        canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
-
-        final TextPainter lineValuePainter = TextPainter(
-          text: TextSpan(
-            text: lineValue.toStringAsFixed(2),
-            style: const TextStyle(color: Colors.black, fontSize: 12.0),
-          ),
-          textDirection: ui.TextDirection.ltr,
-        );
-        lineValuePainter.layout();
-        lineValuePainter.paint(
-          canvas,
-          Offset(width + 5, y - lineValuePainter.height / 2),
-        );
-      }
-    }
+    //     final TextPainter lineValuePainter = TextPainter(
+    //       text: TextSpan(
+    //         text: lineValue.toStringAsFixed(2),
+    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
+    //       ),
+    //       textDirection: ui.TextDirection.ltr,
+    //     );
+    //     lineValuePainter.layout();
+    //     lineValuePainter.paint(
+    //       canvas,
+    //       Offset(width + 5, y - lineValuePainter.height / 2),
+    //     );
+    //   }
+    // }
   }
 
   @override
