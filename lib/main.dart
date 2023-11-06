@@ -1,8 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
+import 'dart:math';
 
 void main() {
   runApp(const MyApp());
@@ -77,12 +75,39 @@ class _PriceChartState extends State<PriceChart> {
   double zoomY = 0.0;
   double scrollOffsetX = 0.0;
   double scrollOffsetY = 0.0;
-  double minY = 100;
-  double maxY = 110;
+  double maxY = 110.85;
+  double minY = 110.20;
 
   @override
   void initState() {
     super.initState();
+  }
+
+  void updateVisiblePricesWhenScrollY(double delta, Size size) {
+    double factor =
+        0.025; // Puedes ajustar este factor para controlar la velocidad del desplazamiento
+    double intervaloEntreLineas =
+        (maxY - minY) / 10; // Puedes ajustar el número de líneas
+    double desplazamiento = delta * factor * intervaloEntreLineas;
+
+    scrollOffsetY += desplazamiento;
+
+    setState(() {});
+  }
+
+  updateVisiblePricesWhenZoom(double zoom) {
+    double factor = 0.01;
+    double intervaloEntreLineas = (maxY - minY) / 10;
+    double delta = zoom * factor * (intervaloEntreLineas * 10);
+    double newMaxVisiblePrice = maxY + delta;
+    double newMinVisiblePrice = minY - delta;
+    double newPriceRange = newMaxVisiblePrice - newMinVisiblePrice;
+
+    if (newPriceRange >= 0.01) {
+      maxY = newMaxVisiblePrice;
+      minY = newMinVisiblePrice;
+    }
+    setState(() {});
   }
 
   @override
@@ -93,60 +118,20 @@ class _PriceChartState extends State<PriceChart> {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              GestureDetector(
-                onHorizontalDragUpdate: (details) {
-                  setState(() {
-                    scrollOffsetX += details.primaryDelta ?? 0.0;
-                  });
-                },
-                onPanUpdate: (details) {
-                  setState(() {
-                    scrollOffsetX += details.delta.dx;
-                    scrollOffsetY += details.delta.dy;
-                  });
-                },
-                child: CustomPaint(
-                  size: Size(size.width / 2, size.height / 2),
-                  painter: PriceChartPainter(
-                      zoomY: zoomY,
-                      zoom: zoom,
-                      scrollOffsetX: scrollOffsetX,
-                      scrollOffsetY: scrollOffsetY,
-                      startDate: widget.startDate,
-                      endDate: widget.endDate,
-                      data: widget.data,
-                      maxY: maxY,
-                      minY: minY),
-                ),
-              ),
-              const SizedBox(
-                height: 50,
-              ),
-              MouseRegion(
-                cursor: SystemMouseCursors.resizeColumn,
-                child: GestureDetector(
-                  onHorizontalDragUpdate: (details) {
-                    setState(() {
-                      zoom += details.primaryDelta! / 20;
-                      if (zoom < -3.0) {
-                        zoom = -3.0; // Establece el valor mínimo en 2.0
-                      } else if (zoom > 125.0) {
-                        zoom = 125.0;
-                      }
-                    });
-                  },
-                  child: Container(
-                    height: 50,
-                    width: size.width / 2,
-                    color: Colors.blue,
-                  ),
-                ),
-              )
-            ],
+          GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                updateVisiblePricesWhenScrollY(details.delta.dy, size);
+              });
+            },
+            child: CustomPaint(
+              size: Size(size.width / 2, size.height / 2),
+              painter: PriceChartPainter(
+                  scrollOffsetY: scrollOffsetY,
+                  maxY: maxY,
+                  minY: minY,
+                  zoomY: zoomY),
+            ),
           ),
           const SizedBox(
             width: 60,
@@ -156,7 +141,8 @@ class _PriceChartState extends State<PriceChart> {
             child: GestureDetector(
               onVerticalDragUpdate: (details) {
                 setState(() {
-                  zoomY += details.primaryDelta ?? 0.0;
+                  zoomY += details.delta.dy;
+                  updateVisiblePricesWhenZoom(details.delta.dy);
                 });
               },
               child: Container(
@@ -173,96 +159,58 @@ class _PriceChartState extends State<PriceChart> {
 }
 
 class PriceChartPainter extends CustomPainter {
-  final DateTime startDate;
-  final DateTime endDate;
-  double zoom;
-  double zoomY;
-  double scrollOffsetX;
   double scrollOffsetY;
-  final List<Candlestick> data;
   double minY;
   double maxY;
+  double zoomY;
 
   PriceChartPainter(
-      {required this.startDate,
-      required this.zoom,
-      required this.scrollOffsetX,
-      required this.scrollOffsetY,
-      required this.zoomY,
-      required this.endDate,
-      required this.data,
+      {required this.scrollOffsetY,
       required this.maxY,
-      required this.minY});
+      required this.minY,
+      required this.zoomY});
 
   @override
   void paint(Canvas canvas, Size size) {
     final double width = size.width;
     final double height = size.height;
-    final int minutes = endDate.difference(startDate).inMinutes;
 
     final Paint linePaint = Paint()
       ..color = Colors.blue
       ..style = PaintingStyle.stroke;
 
-    // Ajustar el ancho de los minutos
-    double adjustedXAxisInterval = (width / data.length) + zoom;
-    //double adjustedXAxisInterval = xAxisInterval + zoom;
-
-    const double constantValue =
-        100.0; // Ajusta este valor según tus necesidades.
-
-    int roundToNearestMultiple(double value, int exp) {
-      final exponent = (log(value / exp) / log(exp)).ceil();
-      final multiple = pow(exp, exponent).toInt();
-      return multiple;
-    }
-
-    //final int interval = (constantValue / adjustedXAxisInterval).ceil();
-    double interval = (constantValue / adjustedXAxisInterval);
-    int intervalMinutes = roundToNearestMultiple(interval, 2);
-    if (intervalMinutes == 0 || intervalMinutes < 0) {
-      intervalMinutes = 1;
-    }
-
-    // Dibujar líneas verticales (eje X) y etiquetas de tiempo
-    for (int i = 0; i <= minutes; i += intervalMinutes) {
-      final double centerX = i * adjustedXAxisInterval + scrollOffsetX;
-      if (centerX > 0 && centerX < width) {
-        // Dibujar la línea vertical
-        canvas.drawLine(Offset(centerX, 0), Offset(centerX, height), linePaint);
-
-        final DateTime currentDateTime = startDate.add(Duration(minutes: i));
-
-        // Formato de la fecha y hora como una cadena
-        final String timeLabel = DateFormat.Hm().format(currentDateTime);
-
-        // Dibujar la etiqueta de tiempo debajo de la línea
-        final TextPainter timeLabelPainter = TextPainter(
-          text: TextSpan(
-            text: timeLabel,
-            style: const TextStyle(color: Colors.black, fontSize: 12.0),
-          ),
-          textDirection: ui.TextDirection.ltr,
-        );
-        timeLabelPainter.layout();
-        timeLabelPainter.paint(
-          canvas,
-          Offset(centerX - timeLabelPainter.width / 2, height + 5),
-        );
-      }
-    }
-
+    //Dibujar lineas horizontales
     double siguienteMultiplo(double valor) {
       double multiplo;
-      if(valor < 0.1){
-        multiplo = 0.1;
-      }
-      if (valor < 1) {
-        multiplo =
-            0.5; // Si el valor es menor que 1, empezamos con múltiplos decimales
+      if (valor < 0.01) {
+        multiplo = 0.01;
         while (multiplo <= valor) {
-          multiplo +=
-              0.2; // Sumamos 0.2 para obtener el siguiente múltiplo decimal
+          multiplo += 0.01;
+        }
+      } else if (valor < 0.02) {
+        multiplo = 0.02;
+        while (multiplo <= valor) {
+          multiplo += 0.02;
+        }
+      } else if (valor < 0.05) {
+        multiplo = 0.05;
+        while (multiplo <= valor) {
+          multiplo += 0.05;
+        }
+      } else if (valor < 0.2) {
+        multiplo = 0.1;
+        while (multiplo <= valor) {
+          multiplo += 0.1;
+        }
+      } else if (valor < 0.5) {
+        multiplo = 0.2;
+        while (multiplo <= valor) {
+          multiplo += 0.2;
+        }
+      } else if (valor < 1) {
+        multiplo = 0.2;
+        while (multiplo <= valor) {
+          multiplo += 0.2;
         }
       } else if (valor < 5) {
         multiplo = 2;
@@ -280,49 +228,23 @@ class PriceChartPainter extends CustomPainter {
       return multiplo;
     }
 
-    double zoomFactor = 1.0 + (zoomY / 10);
-    final double totalRange = maxY - minY;
+    final num totalRange = maxY - minY;
+    final double valorMedio = (maxY + minY) / 2;
     const int numberOfLines = 10;
     final double yInterval = totalRange / numberOfLines;
-    double adjustedYAxisInterval = yInterval + (zoomY / 10);
-    double intervalPrice = (siguienteMultiplo(adjustedYAxisInterval));
-    if (intervalPrice == 0.1 || intervalPrice < 0.1) {
-      intervalPrice = 0.1;
+    double intervalPrice = (siguienteMultiplo(yInterval));
+    if (intervalPrice == 0.01 || intervalPrice < 0.01) {
+      intervalPrice = 0.01;
     }
+    //double delta = scrollOffsetY / maxVisiblePrice;
 
-
-    // for (double lineValue = maxY;
-    //     lineValue >= minY;
-    //     lineValue -= intervalPrice) {
-    //   final double y = height -
-    //       ((lineValue - minY) * (height / (totalRange + zoomY))) +
-    //       scrollOffsetY;
-    //   if (y >= 0 && y <= height) {
-    //     canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
-
-    //     final TextPainter lineValuePainter = TextPainter(
-    //       text: TextSpan(
-    //         text: lineValue.toStringAsFixed(2),
-    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //       ),
-    //       textDirection: ui.TextDirection.ltr,
-    //     );
-    //     lineValuePainter.layout();
-    //     lineValuePainter.paint(
-    //       canvas,
-    //       Offset(width + 5, y - lineValuePainter.height / 2),
-    //     );
-    //   }
-    // }
-
-    for (double lineValue = maxY;
-        lineValue <= (maxY + scrollOffsetY) * zoomFactor;
+    for (double lineValue = valorMedio;
+        lineValue <= (height + scrollOffsetY * zoomY) ;
         lineValue += intervalPrice) {
-      final double y = height -
-          ((lineValue - minY) * (height / (totalRange + zoomY))) +
-          scrollOffsetY;
+      final double y =
+          height - ((lineValue - minY - scrollOffsetY) * (height / totalRange));
       if (y >= 0 && y <= height) {
-        canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+        canvas.drawLine(Offset(0.0, y), Offset(size.width, y), linePaint);
 
         final TextPainter lineValuePainter = TextPainter(
           text: TextSpan(
@@ -334,34 +256,42 @@ class PriceChartPainter extends CustomPainter {
         lineValuePainter.layout();
         lineValuePainter.paint(
           canvas,
-          Offset(width + 5, y - lineValuePainter.height / 2),
+          Offset(width / 2 - lineValuePainter.width / 2,
+              y - lineValuePainter.height / 2),
         );
       }
     }
 
-    // for (double lineValue = minY;
-    //     lineValue >= (minY + scrollOffsetY) * zoomFactor;
-    //     lineValue -= intervalPrice) {
-    //   final double y = height -
-    //       ((lineValue - minY) * (height / (totalRange + zoomY))) +
-    //       scrollOffsetY;
-    //   if (y >= 0 && y <= height) {
-    //     canvas.drawLine(Offset(0, y), Offset(width, y), linePaint);
+    for (double lineValue = valorMedio - intervalPrice;
+        lineValue >= (0.0 + scrollOffsetY - height);
+        lineValue -= intervalPrice) {
+      final double y =
+          height - ((lineValue - minY - scrollOffsetY) * (height / totalRange));
+      if (y >= 0 && y <= height) {
+        canvas.drawLine(Offset(0.0, y), Offset(size.width, y), linePaint);
 
-    //     final TextPainter lineValuePainter = TextPainter(
-    //       text: TextSpan(
-    //         text: lineValue.toStringAsFixed(2),
-    //         style: const TextStyle(color: Colors.black, fontSize: 12.0),
-    //       ),
-    //       textDirection: ui.TextDirection.ltr,
-    //     );
-    //     lineValuePainter.layout();
-    //     lineValuePainter.paint(
-    //       canvas,
-    //       Offset(width + 5, y - lineValuePainter.height / 2),
-    //     );
-    //   }
-    // }
+        final TextPainter lineValuePainter = TextPainter(
+          text: TextSpan(
+            text: lineValue.toStringAsFixed(2),
+            style: const TextStyle(color: Colors.black, fontSize: 12.0),
+          ),
+          textDirection: ui.TextDirection.ltr,
+        );
+        lineValuePainter.layout();
+        lineValuePainter.paint(
+          canvas,
+          Offset(width / 2 - lineValuePainter.width / 2,
+              y - lineValuePainter.height / 2),
+        );
+      }
+    }
+    //Dibujamos el margen del canvas
+    canvas.drawRect(
+        Rect.fromPoints(const Offset(0, 0), Offset(size.width, size.height)),
+        Paint()
+          ..color = const Color.fromARGB(255, 0, 0, 0)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0);
   }
 
   @override
