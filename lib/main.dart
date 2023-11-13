@@ -1,6 +1,12 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'dart:math';
+
+enum DraggingPoint { none, start, end }
+
+DraggingPoint draggingPoint = DraggingPoint.none;
 
 void main() {
   runApp(const MyApp());
@@ -77,6 +83,17 @@ class _PriceChartState extends State<PriceChart> {
   double scrollOffsetY = 0.0;
   double maxY = 110.85;
   double minY = 110.20;
+  List<Offset> points = [];
+  List<double> priceLines = [];
+  Offset? position;
+  bool isfirstTendPointTap = false;
+  List<TrendLine> trendLines = [];
+  Offset startPoint = Offset.zero;
+  Offset endPoint = Offset.zero;
+  Offset firstTrendPoint = Offset.zero;
+  TrendLine? draggingLine;
+  bool isLineDragging = false;
+  bool isPointDragging = false;
 
   @override
   void initState() {
@@ -84,10 +101,8 @@ class _PriceChartState extends State<PriceChart> {
   }
 
   void updateVisiblePricesWhenScrollY(double delta, Size size) {
-    double factor =
-        0.025; // Puedes ajustar este factor para controlar la velocidad del desplazamiento
-    double intervaloEntreLineas =
-        (maxY - minY) / 10; // Puedes ajustar el número de líneas
+    double factor = 0.025;
+    double intervaloEntreLineas = (maxY - minY) / 10;
     double desplazamiento = delta * factor * intervaloEntreLineas;
 
     scrollOffsetY += desplazamiento;
@@ -96,7 +111,7 @@ class _PriceChartState extends State<PriceChart> {
   }
 
   updateVisiblePricesWhenZoom(double zoom) {
-    double factor = 0.01;
+    double factor = 0.002;
     double intervaloEntreLineas = (maxY - minY) / 10;
     double delta = zoom * factor * (intervaloEntreLineas * 10);
     double newMaxVisiblePrice = maxY + delta;
@@ -110,6 +125,66 @@ class _PriceChartState extends State<PriceChart> {
     setState(() {});
   }
 
+  Size candleCanvasSize(BuildContext context) {
+    Size size = MediaQuery.of(context).size;
+    return Size(size.width / 1.2, 400);
+  }
+
+  addPriceLine(double value, Size size) {
+    double yPosition =
+        maxY - (value * (maxY - minY) / size.height) + scrollOffsetY;
+
+    priceLines.add(yPosition);
+    setState(() {});
+  }
+
+  double _distanceFromPointToLine(
+      Offset point, Offset lineStart, Offset lineEnd) {
+    final double A = point.dx - lineStart.dx;
+    final double B = point.dy - lineStart.dy;
+    final double C = lineEnd.dx - lineStart.dx;
+    final double D = lineEnd.dy - lineStart.dy;
+
+    final double dot = A * C + B * D;
+    final double lenSq = C * C + D * D;
+    final double param = (lenSq != 0) ? dot / lenSq : -1;
+
+    double closestX, closestY;
+
+    if (param < 0) {
+      closestX = lineStart.dx;
+      closestY = lineStart.dy;
+    } else if (param > 1) {
+      closestX = lineEnd.dx;
+      closestY = lineEnd.dy;
+    } else {
+      closestX = lineStart.dx + param * C;
+      closestY = lineStart.dy + param * D;
+    }
+
+    final double dx = point.dx - closestX;
+    final double dy = point.dy - closestY;
+
+    return sqrt(dx * dx + dy * dy);
+  }
+
+  double _distanceBetweenPoints(Offset point1, Offset point2) {
+    final double dx = point1.dx - point2.dx;
+    final double dy = point1.dy - point2.dy;
+    return sqrt(dx * dx + dy * dy);
+  }
+
+  bool _isPointOnLine(Offset point, Offset lineStart, Offset lineEnd) {
+    return _distanceFromPointToLine(point, lineStart, lineEnd) < 10.0;
+  }
+
+  bool _isPointClicked(Offset point, Offset linePoint) {
+    return _distanceBetweenPoints(point, linePoint) < 10.0;
+  }
+
+  bool isDragging = false;
+  int? draggingIndex;
+
   @override
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
@@ -118,44 +193,120 @@ class _PriceChartState extends State<PriceChart> {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          GestureDetector(
-            onPanUpdate: (details) {
+          MouseRegion(
+            onHover: (event) {
               setState(() {
-                updateVisiblePricesWhenScrollY(details.delta.dy, size);
+                position = event.localPosition;
               });
             },
-            child: CustomPaint(
-              size: Size(size.width / 2, size.height / 2),
-              painter: PriceChartPainter(
-                  scrollOffsetY: scrollOffsetY,
-                  maxY: maxY,
-                  minY: minY,
-                  zoomY: zoomY),
-            ),
-          ),
-          const SizedBox(
-            width: 60,
-          ),
-          MouseRegion(
-            cursor: SystemMouseCursors.resizeUpDown,
             child: GestureDetector(
-              onVerticalDragUpdate: (details) {
+              onPanUpdate: (details) {
                 setState(() {
-                  zoomY += details.delta.dy;
-                  updateVisiblePricesWhenZoom(details.delta.dy);
+                  if (draggingLine != null) {
+                    if (isLineDragging) {
+                      draggingLine!.startPoint += details.delta;
+                      draggingLine!.endPoint += details.delta;
+                    } else if (isPointDragging) {
+                      if (draggingPoint == DraggingPoint.start) {
+                        draggingLine!.startPoint += details.delta;
+                      } else if (draggingPoint == DraggingPoint.end) {
+                        draggingLine!.endPoint += details.delta;
+                      }
+                    }
+                  } else {
+                    updateVisiblePricesWhenScrollY(details.delta.dy, size);
+                  }
                 });
               },
-              child: Container(
-                height: size.height / 2,
-                width: 50,
-                color: Colors.blue,
+              onPanEnd: (details) {
+                setState(() {
+                  draggingLine = null;
+                  draggingPoint = DraggingPoint.none;
+                  isLineDragging = false;
+                  isPointDragging = false;
+                });
+              },
+              onTapUp: (details) {
+                setState(() {
+                  if (!isfirstTendPointTap) {
+                    firstTrendPoint = details.localPosition;
+                    startPoint = details.localPosition;
+                    isfirstTendPointTap = true;
+                  } else {
+                    endPoint = details.localPosition;
+                    isfirstTendPointTap = false;
+
+                    TrendLine trendLine = TrendLine(
+                      index: trendLines.length,
+                      startPoint: startPoint,
+                      endPoint: endPoint,
+                    );
+
+                    trendLines.add(trendLine);
+                  }
+                });
+              },
+              onTapDown: (details) {
+                setState(() {
+                  for (var i = 0; i < trendLines.length; i++) {
+                    final trendLine = trendLines[i];
+                    final startPoint = trendLine.startPoint;
+                    final endPoint = trendLine.endPoint;
+
+                    if (_isPointClicked(details.localPosition, startPoint)) {
+                      isPointDragging = true;
+                      draggingLine = trendLine;
+                      draggingIndex = i;
+                      draggingPoint = DraggingPoint.start;
+                    } else if (_isPointClicked(
+                        details.localPosition, endPoint)) {
+                      isPointDragging = true;
+                      draggingLine = trendLine;
+                      draggingIndex = i;
+                      draggingPoint = DraggingPoint.end;
+                    } else if (_isPointOnLine(
+                        details.localPosition, startPoint, endPoint)) {
+                      isLineDragging = true;
+                      draggingLine = trendLine;
+                      draggingIndex = i;
+                    }
+                  }
+                });
+              },
+              child: CustomPaint(
+                size: Size(candleCanvasSize(context).width,
+                    candleCanvasSize(context).height),
+                painter: PriceChartPainter(
+                    scrollOffsetY: scrollOffsetY,
+                    maxY: maxY,
+                    minY: minY,
+                    zoomY: zoomY,
+                    points: points,
+                    position: position,
+                    priceLines: priceLines,
+                    isfirstTendPointTap: isfirstTendPointTap,
+                    trendLines: trendLines,
+                    firstTrendPoint: firstTrendPoint,
+                    isDragging: isDragging,
+                    draggingIndex: draggingIndex ?? 0),
               ),
             ),
-          )
+          ),
         ],
       ),
     );
   }
+}
+
+class TrendLine {
+  int index;
+  Offset startPoint;
+  Offset endPoint;
+
+  TrendLine(
+      {required this.index,
+      this.startPoint = Offset.zero,
+      this.endPoint = Offset.zero});
 }
 
 class PriceChartPainter extends CustomPainter {
@@ -163,135 +314,107 @@ class PriceChartPainter extends CustomPainter {
   double minY;
   double maxY;
   double zoomY;
+  final List<Offset> points;
+  Offset? position;
+  List<double> priceLines;
+  bool isfirstTendPointTap;
+  List<TrendLine> trendLines;
+  Offset firstTrendPoint;
+  bool isDragging;
+  int draggingIndex;
 
   PriceChartPainter(
       {required this.scrollOffsetY,
       required this.maxY,
       required this.minY,
-      required this.zoomY});
+      required this.zoomY,
+      required this.points,
+      required this.position,
+      required this.priceLines,
+      required this.isfirstTendPointTap,
+      required this.trendLines,
+      required this.firstTrendPoint,
+      required this.isDragging,
+      required this.draggingIndex});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double width = size.width;
-    final double height = size.height;
+    //final double width = size.width;
+    //final double height = size.height;
 
     final Paint linePaint = Paint()
       ..color = Colors.blue
       ..style = PaintingStyle.stroke;
 
-    //Dibujar lineas horizontales
-    double siguienteMultiplo(double valor) {
-      double multiplo;
-      if (valor < 0.01) {
-        multiplo = 0.01;
-        while (multiplo <= valor) {
-          multiplo += 0.01;
-        }
-      } else if (valor < 0.02) {
-        multiplo = 0.02;
-        while (multiplo <= valor) {
-          multiplo += 0.02;
-        }
-      } else if (valor < 0.05) {
-        multiplo = 0.05;
-        while (multiplo <= valor) {
-          multiplo += 0.05;
-        }
-      } else if (valor < 0.2) {
-        multiplo = 0.1;
-        while (multiplo <= valor) {
-          multiplo += 0.1;
-        }
-      } else if (valor < 0.5) {
-        multiplo = 0.2;
-        while (multiplo <= valor) {
-          multiplo += 0.2;
-        }
-      } else if (valor < 1) {
-        multiplo = 0.2;
-        while (multiplo <= valor) {
-          multiplo += 0.2;
-        }
-      } else if (valor < 5) {
-        multiplo = 2;
-        while (multiplo <= valor) {
-          multiplo *= 2;
-        }
-      } else {
-        int entero = valor.round();
-        multiplo = 10;
-        while (multiplo <= entero) {
-          multiplo *= 2;
-        }
-      }
+    // final Paint priceLinePaint = Paint()
+    //   ..color = Colors.yellow
+    //   ..style = PaintingStyle.stroke;
 
-      return multiplo;
+    final Paint trendPoint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.fill;
+
+    if (isfirstTendPointTap) {
+      canvas.drawLine(firstTrendPoint, position!, linePaint);
+      canvas.drawCircle(firstTrendPoint, 6, trendPoint);
     }
 
-    final num totalRange = maxY - minY;
-    final double valorMedio = (maxY + minY) / 2;
-    const int numberOfLines = 10;
-    final double yInterval = totalRange / numberOfLines;
-    double intervalPrice = (siguienteMultiplo(yInterval));
-    if (intervalPrice == 0.01 || intervalPrice < 0.01) {
-      intervalPrice = 0.01;
-    }
-    //double delta = scrollOffsetY / maxVisiblePrice;
+    for (var i = 0; i < trendLines.length; i++) {
+      final trendLine = trendLines[i];
+      final startPoint = trendLine.startPoint;
+      final endPoint = trendLine.endPoint;
 
-    for (double lineValue = valorMedio;
-        lineValue <= (height + scrollOffsetY * zoomY) ;
-        lineValue += intervalPrice) {
-      final double y =
-          height - ((lineValue - minY - scrollOffsetY) * (height / totalRange));
-      if (y >= 0 && y <= height) {
-        canvas.drawLine(Offset(0.0, y), Offset(size.width, y), linePaint);
+      // Dibujar la línea
+      canvas.drawLine(startPoint, endPoint, linePaint);
 
-        final TextPainter lineValuePainter = TextPainter(
-          text: TextSpan(
-            text: lineValue.toStringAsFixed(2),
-            style: const TextStyle(color: Colors.black, fontSize: 12.0),
-          ),
-          textDirection: ui.TextDirection.ltr,
-        );
-        lineValuePainter.layout();
-        lineValuePainter.paint(
-          canvas,
-          Offset(width / 2 - lineValuePainter.width / 2,
-              y - lineValuePainter.height / 2),
-        );
-      }
+      // Dibujar los puntos de inicio y fin
+      canvas.drawCircle(startPoint, 6, trendPoint);
+      canvas.drawCircle(endPoint, 6, trendPoint);
     }
 
-    for (double lineValue = valorMedio - intervalPrice;
-        lineValue >= (0.0 + scrollOffsetY - height);
-        lineValue -= intervalPrice) {
-      final double y =
-          height - ((lineValue - minY - scrollOffsetY) * (height / totalRange));
-      if (y >= 0 && y <= height) {
-        canvas.drawLine(Offset(0.0, y), Offset(size.width, y), linePaint);
-
-        final TextPainter lineValuePainter = TextPainter(
-          text: TextSpan(
-            text: lineValue.toStringAsFixed(2),
-            style: const TextStyle(color: Colors.black, fontSize: 12.0),
-          ),
-          textDirection: ui.TextDirection.ltr,
-        );
-        lineValuePainter.layout();
-        lineValuePainter.paint(
-          canvas,
-          Offset(width / 2 - lineValuePainter.width / 2,
-              y - lineValuePainter.height / 2),
-        );
-      }
-    }
-    //Dibujamos el margen del canvas
+    // //Dibujamos el margen del canvas
     canvas.drawRect(
         Rect.fromPoints(const Offset(0, 0), Offset(size.width, size.height)),
         Paint()
           ..color = const Color.fromARGB(255, 0, 0, 0)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.0);
+  }
+
+  double _distanceBetweenPoints(Offset point1, Offset point2) {
+    final double dx = point1.dx - point2.dx;
+    final double dy = point1.dy - point2.dy;
+    return sqrt(dx * dx + dy * dy);
+  }
+
+  double _distanceFromPointToLine(
+      Offset point, Offset lineStart, Offset lineEnd) {
+    final double A = point.dx - lineStart.dx;
+    final double B = point.dy - lineStart.dy;
+    final double C = lineEnd.dx - lineStart.dx;
+    final double D = lineEnd.dy - lineStart.dy;
+
+    final double dot = A * C + B * D;
+    final double lenSq = C * C + D * D;
+    final double param = (lenSq != 0) ? dot / lenSq : -1;
+
+    double closestX, closestY;
+
+    if (param < 0) {
+      closestX = lineStart.dx;
+      closestY = lineStart.dy;
+    } else if (param > 1) {
+      closestX = lineEnd.dx;
+      closestY = lineEnd.dy;
+    } else {
+      closestX = lineStart.dx + param * C;
+      closestY = lineStart.dy + param * D;
+    }
+
+    final double dx = point.dx - closestX;
+    final double dy = point.dy - closestY;
+
+    return sqrt(dx * dx + dy * dy);
   }
 
   @override
